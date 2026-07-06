@@ -156,6 +156,8 @@ Date	Value
 ```
 
 - `Date` in `YYYY-MM` for monthly series.
+- `wds_fetch.py` also copies the result to the clipboard automatically (pass `--no-clip` to skip,
+  e.g. in scheduled jobs) — tell the user it's ready to paste into Excel or a text file.
 - Ask the user if they want the file, the data pasted inline in the response, or both — inline is
   frequently more convenient than a file the user has to open and re-copy from.
 

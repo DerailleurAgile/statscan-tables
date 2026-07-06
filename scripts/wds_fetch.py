@@ -15,7 +15,10 @@ with it. Output is tab-delimited for painless spreadsheet pasting.
 """
 import argparse
 import csv
+import io
 import json
+import platform
+import subprocess
 from urllib import request
 
 WDS_DATA_URL = "https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods"
@@ -81,12 +84,37 @@ def to_yoy(points: list) -> list:
             out.append((ym, round((val / by_month[prior] - 1.0) * 100, 1)))
     return out
 
+def copy_to_clipboard(text: str) -> bool:
+    """Best-effort clipboard copy using the platform's own tool — no dependencies.
+    clip (Windows, fed UTF-16 so accents survive), pbcopy (macOS), xclip/xsel (Linux).
+    Returns False silently if no tool is available."""
+    system = platform.system()
+    if system == "Windows":
+        # BOM-less UTF-16LE: clip.exe reads it as Unicode without leaving a
+        # stray U+FEFF at the front of the pasted text
+        candidates = [(["clip"], text.encode("utf-16-le"))]
+    elif system == "Darwin":
+        candidates = [(["pbcopy"], text.encode("utf-8"))]
+    else:
+        candidates = [(["xclip", "-selection", "clipboard"], text.encode("utf-8")),
+                      (["xsel", "--clipboard", "--input"], text.encode("utf-8"))]
+    for cmd, payload in candidates:
+        try:
+            subprocess.run(cmd, input=payload, check=True)
+            return True
+        except (OSError, subprocess.CalledProcessError):
+            continue
+    return False
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("vector", nargs="?", type=int, default=41690974)
     ap.add_argument("months", nargs="?", type=int, default=24)
     ap.add_argument("--transform", choices=["yoy", "raw"], default="yoy")
     ap.add_argument("--out", default="statscan_series.csv")
+    ap.add_argument("--no-clip", action="store_true",
+                    help="don't copy the result to the clipboard (e.g. in scheduled jobs)")
     opts = ap.parse_args()
 
     if opts.transform == "yoy":
@@ -99,13 +127,19 @@ def main():
     title, table = fetch_series_info(opts.vector)
     header = build_header(title, table, transform_label, series[0][0], series[-1][0])
 
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter="\t", lineterminator="\n")
+    w.writerow(["Date", header])
+    w.writerows(series)
+    text = buf.getvalue()
+
     with open(opts.out, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f, delimiter="\t")
-        w.writerow(["Date", header])
-        w.writerows(series)
+        f.write(text)
 
     # Verification block: exact series title, range, spot-check values
     print(f"Wrote {len(series)} rows to {opts.out}")
+    if not opts.no_clip and copy_to_clipboard(text):
+        print("Copied to clipboard — paste straight into Excel, Sheets, or a text file.")
     print(f"Series:  {transform_label} {title} (Table {table}, v{opts.vector})")
     print(f"Range:   {series[0][0]} to {series[-1][0]}")
     print(f"Last 3:  " + ", ".join(f"{d}: {v}" for d, v in series[-3:]))
