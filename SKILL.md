@@ -1,5 +1,6 @@
 ---
 name: statscan-tables
+version: 1.1.0
 description: >
   Activate this skill whenever the user wants to fetch, download, or update a Statistics Canada
   time series. Trigger on mentions of "StatsCan", "Statistics Canada", a table number in the
@@ -91,6 +92,12 @@ Body: [{"vectorId": <integer, no "v" prefix>, "latestN": <count>}]
   prior months per output point), fetch `latestN` = desired output months + 12, and say so.
 - Multiple vectors can be fetched in one call by adding more objects to the array — useful for
   comparison series (e.g., food vs. all-items).
+- **Cloud/web sessions (claude.ai/code):** the default Trusted network allowlist does not include
+  StatsCan, so all WDS calls fail. The environment needs Network access set to **Custom** with
+  `www150.statcan.gc.ca` in Allowed domains (the scripts are stdlib-only, so no package-registry
+  access is required). If a fetch fails with a proxy/connection error in a cloud session, report
+  this cause and fix to the user — don't retry or hunt for other bugs. Clipboard copy is silently
+  skipped there; hand over the file and/or inline data instead.
 
 For the common cases, `scripts/wds_fetch.py` does Steps 2–5 in one run:
 
@@ -160,6 +167,9 @@ Date	Value
   e.g. in scheduled jobs) — tell the user it's ready to paste into Excel or a text file.
 - Ask the user if they want the file, the data pasted inline in the response, or both — inline is
   frequently more convenient than a file the user has to open and re-copy from.
+- Write the file to the session's temp/scratchpad directory, not the user's project or working
+  directory — a data pull is usually paste-and-go, and strays shouldn't litter the repo. Save it
+  into the project only when the user asks to keep it.
 
 ### Building the Value column header
 
