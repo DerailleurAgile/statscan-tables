@@ -3,11 +3,13 @@ wds_fetch.py — Fetch a Statistics Canada WDS vector and emit a clean,
 chronologically-ordered two-column (Date, Value) file. Standard library only.
 
 Usage: python wds_fetch.py [vectorId] [months] [--transform yoy|raw]
+                           [--aggregate monthly|bimonthly|quarterly|annual]
+                           [--agg-method mean|sum]
                            [--out statscan_series.csv]
 Default: vector 41690974 (CPI Food, Canada, NSA, 2002=100), 24 months, YoY.
 
-YoY is computed as (index_t / index_{t-12} - 1) x 100, matched to the same
-calendar month a year prior (not simply the 12th-prior row, in case of gaps),
+YoY is computed as (value_t / value_{t-1yr} - 1) x 100, matched to the same
+calendar period a year prior (not simply the 12th-prior row, in case of gaps),
 rounded to 1 decimal — StatsCan's own publication precision for CPI YoY. The
 Value column header is built from the vector's own series title and table
 number plus the actual output date range, so the file carries its provenance
@@ -19,6 +21,7 @@ import io
 import json
 import platform
 import subprocess
+from statistics import fmean
 from urllib import request
 
 WDS_DATA_URL = "https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods"
@@ -57,8 +60,10 @@ def build_header(title: str, table: str, transform: str, start: str, end: str, c
     return f"StatsCan: {transform} {title} ({start}-{end}) — {prefix}: {table}"
 
 def clean_points(points: list) -> list:
-    """points: list of WDS datapoint dicts. Returns [(refPer 'YYYY-MM', value), ...],
-    chronological, non-values dropped — the raw series, no transformation."""
+    """points: list of WDS datapoint dicts. Returns [(label, value), ...], chronological,
+    non-values dropped — the raw series, no transformation. Month-start refPers collapse to
+    'YYYY-MM'; true sub-monthly (e.g. weekly) refPers keep the full 'YYYY-MM-DD' so aggregate()
+    can bucket them — a series is only monthly-or-coarser if every point lands on day 1."""
     clean = []
     for p in points:
         # statusCode 0 = normal value; 1 = not available; skip non-values
@@ -67,21 +72,44 @@ def clean_points(points: list) -> list:
         # scalarFactorCode 0 = units; anything else needs scaling (never true for CPI)
         if p.get("scalarFactorCode", 0) != 0:
             raise RuntimeError(f"Unexpected scalar factor {p['scalarFactorCode']} at {p['refPer']}")
-        clean.append((p["refPer"][:7], float(p["value"])))
+        clean.append((p["refPer"][:10], float(p["value"])))
     clean.sort(key=lambda t: t[0])  # chronological; time series must be in time order
+    if all(d.endswith("-01") for d, _ in clean):
+        clean = [(d[:7], v) for d, v in clean]  # monthly or coarser: label by month
     return clean
 
-def to_yoy(points: list) -> list:
-    """points: list of WDS datapoint dicts. Returns [(refPer 'YYYY-MM', yoy_pct), ...]
-    where yoy_pct is in percentage points rounded to 1 decimal (e.g. 3.8 = 3.8%)."""
-    clean = clean_points(points)
-    by_month = dict(clean)
+def aggregate(series: list, freq: str, method: str = "mean") -> list:
+    """series: [(date, value), ...] chronological, dates 'YYYY-MM' or 'YYYY-MM-DD'.
+    Compiles into calendar buckets — freq 'monthly'|'bimonthly'|'quarterly'|'annual',
+    labelled 'YYYY-MM'/'YYYY-Bn'/'YYYY-Qn'/'YYYY' — via mean (indexes, rates) or
+    sum (counts). Incomplete buckets are dropped: month-labelled input by exact
+    count (2/3/12 points per bucket), day-labelled input (weekly etc.) by trimming
+    the first and last bucket, the only ones the fetch window can cut."""
+    span = {"monthly": 1, "bimonthly": 2, "quarterly": 3, "annual": 12}[freq]
+    buckets = {}  # insertion-ordered, so chronological like the input
+    for d, v in series:
+        n = (int(d[5:7]) - 1) // span
+        label = {1: f"{d[:4]}-{n+1:02d}", 2: f"{d[:4]}-B{n+1}",
+                 3: f"{d[:4]}-Q{n+1}", 12: d[:4]}[span]
+        buckets.setdefault(label, []).append(v)
+    compile_ = {"mean": fmean, "sum": sum}[method]
+    labels = list(buckets)
+    if len(series[0][0]) > 7:
+        labels = labels[1:-1]
+    else:
+        labels = [l for l in labels if len(buckets[l]) == span]
+    return [(l, compile_(buckets[l])) for l in labels]
+
+def yoy_series(series: list) -> list:
+    """series: [(label, value), ...] chronological, label starting with the year
+    ('YYYY', 'YYYY-MM', 'YYYY-Qn', ...). Returns [(label, yoy_pct), ...] vs. the same
+    label one year earlier, in percentage points rounded to 1 decimal (e.g. 3.8 = 3.8%)."""
+    by_label = dict(series)
     out = []
-    for ym, val in clean:
-        year, month = int(ym[:4]), int(ym[5:7])
-        prior = f"{year-1:04d}-{month:02d}"
-        if prior in by_month:
-            out.append((ym, round((val / by_month[prior] - 1.0) * 100, 1)))
+    for label, val in series:
+        prior = str(int(label[:4]) - 1) + label[4:]
+        if prior in by_label:
+            out.append((label, round((val / by_label[prior] - 1.0) * 100, 1)))
     return out
 
 def copy_to_clipboard(text: str) -> bool:
@@ -112,20 +140,36 @@ def main():
     ap.add_argument("vector", nargs="?", type=int, default=41690974)
     ap.add_argument("months", nargs="?", type=int, default=24)
     ap.add_argument("--transform", choices=["yoy", "raw"], default="yoy")
+    ap.add_argument("--aggregate", choices=["monthly", "bimonthly", "quarterly", "annual"],
+                    default="",
+                    help="compile the fetched series into coarser calendar buckets before any "
+                         "transform (weekly source: monthly/quarterly/annual; monthly source: "
+                         "bimonthly/quarterly/annual); incomplete edge buckets are dropped")
+    ap.add_argument("--agg-method", choices=["mean", "sum"], default="mean",
+                    help="how each bucket is compiled: mean for indexes and rates (default), "
+                         "sum for counts and flows")
     ap.add_argument("--out", default="statscan_series.csv")
     ap.add_argument("--no-clip", action="store_true",
                     help="don't copy the result to the clipboard (e.g. in scheduled jobs)")
     opts = ap.parse_args()
 
+    extra = 12 if opts.transform == "yoy" else 0  # YoY needs a trailing year of source periods
+    series = clean_points(fetch_vector(opts.vector, opts.months + extra))
+    agg_label = f"{opts.aggregate.title()} {opts.agg_method.title()} " if opts.aggregate else ""
+    if opts.aggregate:
+        series = aggregate(series, opts.aggregate, opts.agg_method)
     if opts.transform == "yoy":
-        series = to_yoy(fetch_vector(opts.vector, opts.months + 12))  # YoY needs 12 trailing months
-        transform_label = "YoY % Change"
+        series = yoy_series(series)
+        if not series:
+            raise SystemExit("YoY needs a same-period-prior-year match, which sub-monthly dates "
+                             "won't have — aggregate first, e.g. --aggregate monthly")
+        transform_label = agg_label + "YoY % Change"
     else:
-        series = clean_points(fetch_vector(opts.vector, opts.months))
-        transform_label = "Raw"
+        transform_label = agg_label.strip() or "Raw"
 
     title, table = fetch_series_info(opts.vector)
-    header = build_header(title, table, transform_label, series[0][0], series[-1][0])
+    header = build_header(title, table, transform_label, series[0][0], series[-1][0],
+                          compiled=bool(opts.aggregate))
 
     buf = io.StringIO()
     w = csv.writer(buf, delimiter="\t", lineterminator="\n")

@@ -1,6 +1,6 @@
 ---
 name: statscan-tables
-version: 1.1.0
+version: 1.2.0
 description: >
   Activate this skill whenever the user wants to fetch, download, or update a Statistics Canada
   time series. Trigger on mentions of "StatsCan", "Statistics Canada", a table number in the
@@ -102,12 +102,25 @@ Body: [{"vectorId": <integer, no "v" prefix>, "latestN": <count>}]
 For the common cases, `scripts/wds_fetch.py` does Steps 2–5 in one run:
 
 ```
-python scripts/wds_fetch.py [vectorId] [months] [--transform yoy|raw] [--out FILE]
+python scripts/wds_fetch.py [vectorId] [months] [--transform yoy|raw]
+                            [--aggregate monthly|bimonthly|quarterly|annual]
+                            [--agg-method mean|sum] [--out FILE]
 ```
 
-It fetches, cleans, transforms (YoY computed from the index, +12 months of trailing history
+It fetches, cleans, transforms (YoY computed from the index, +12 periods of trailing history
 handled automatically), writes a tab-delimited two-column file with a provenance-bearing header,
 and prints the Step 4 verification block.
+
+**Re-timescaling with `--aggregate`.** Compiles the fetched series into coarser calendar buckets
+before any transform: a weekly source into monthly/quarterly/annual, a monthly source into
+bimonthly/quarterly/annual. `--agg-method` picks how a bucket is compiled — `mean` (default) for
+indexes and rates, `sum` for counts and flows. Labels become `YYYY-Qn`/`YYYY-Bn`/`YYYY`; incomplete
+edge buckets are dropped automatically. With `--transform yoy` the aggregation happens first, so
+annual YoY is the change in annual averages — StatsCan's own method for annual CPI. Disaggregation
+below the source frequency is impossible (the finer data doesn't exist); going back to the source
+timescale is simply a re-run without the flag. For a weekly source with YoY, the automatic
+trailing-history fetch covers only ~3 months of extra periods — add roughly 52 to `months` if every
+aggregated point needs a prior-year match.
 
 ---
 
@@ -188,7 +201,9 @@ StatsCan: <transform> <series title> (<start>-<end>) — <provenance>: <table>
   type, not the series name.
 - **`<transform>`** — state what was actually done, not a fixed assumption: `"Raw Index"`, `"YoY %
   Change"`, `"May vs. Prior May % Change"` (or whatever the comparison cadence actually is),
-  `"Estimated Annual"` (for a quarterly/monthly series compiled into annual totals), etc.
+  `"Estimated Annual"` (for a quarterly/monthly series compiled into annual totals), etc. Don't
+  default every series to "YoY Inflation" — that's only correct for CPI-family index series being
+  differenced month-over-month; a count, rate, or level series wants its own transform label.
 - **`(<start>-<end>)`** — compute this from the actual output data's first and last period, never
   type it by hand. A hand-typed range is exactly the kind of thing that silently drifts or typos
   (`2010-206` instead of `2010-2025`) when the window changes on a later run.

@@ -34,9 +34,10 @@ Then ask Claude things like *"pull the last 24 months of food inflation as YoY %
 - **`SKILL.md`** — the fetch → clean → transform → verify protocol Claude follows, including the
   views-vs-cubes rule, the conflation trap, and provenance-bearing column headers.
 - **`scripts/wds_fetch.py`** — fetch a vector, emit a clean tab-delimited Date/Value file
-  (raw values or YoY % change computed from the index), print the verification block, and
-  **copy the result to the clipboard automatically** so it pastes straight into Excel, Google
-  Sheets, or a text file (`--no-clip` to disable, e.g. for scheduled jobs).
+  (raw values or YoY % change computed from the index, with optional `--aggregate` re-timescaling
+  to bimonthly/quarterly/annual first), print the verification block, and **copy the result to
+  the clipboard automatically** so it pastes straight into Excel, Google Sheets, or a text file
+  (`--no-clip` to disable, e.g. for scheduled jobs).
 - **`scripts/cube_metadata.py`** — cube discovery with a 30-day disk cache: dimensions and
   members, filterable, so matching a plain-language request to a vector coordinate is one command.
 - **`references/known-vectors.md`** — a starter ledger of verified vectors and documented traps
