@@ -3,6 +3,22 @@
 The skill's version lives in SKILL.md frontmatter (`version:`). Bump it and add an entry here
 with every change that gets packaged/uploaded — patch for fixes, minor for behavior changes.
 
+## 1.3.0 — 2026-07-09
+
+Alignment with statscan-to-pbc v1.7.0–1.7.3 (the non-PBC lessons — no `--annotate`/chart
+callout material, that's PBC Analyzer PRO-only):
+
+- Step 1 gains a numbered step 4: write a newly confirmed vector to `references/known-vectors.md`
+  (ID, coordinate, title, conflation-risk siblings) in the same turn as confirmation, before Step 2
+  (Fetch) begins. Previously this was a disconnected note in "Known Traps Reference" describing the
+  file's *purpose* rather than *when* to write to it. Redundant reminder at the bottom struck now
+  that step 4 is the single source of the instruction.
+- known-vectors: eight new CPI Food sub-item entries — restaurant food, beef, chicken, milk,
+  butter, eggs, fresh produce (combined + fruit/vegetable splits), and coffee (including an
+  attribution trap: StatsCan's release states the magnitude/ranking but not the causal story —
+  documents the Feb 2025 Arabica futures spike and Loblaw's Sept 2025 tariff/inventory report as
+  the actual drivers).
+
 ## 1.2.0 — 2026-07-08
 
 Alignment with statscan-to-pbc (the non-PBC lessons from its known-vectors ledger and its

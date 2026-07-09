@@ -1,6 +1,6 @@
 ---
 name: statscan-tables
-version: 1.2.0
+version: 1.3.0
 description: >
   Activate this skill whenever the user wants to fetch, download, or update a Statistics Canada
   time series. Trigger on mentions of "StatsCan", "Statistics Canada", a table number in the
@@ -65,6 +65,12 @@ Do not assume a view's displayed column maps to a vector 1:1. Confirm what's act
    dimension member (wrong geography, wrong sub-aggregate) produces a series that charts perfectly
    well and is simply not the thing anyone asked for.
 3. Confirm the vector with `getSeriesInfoFromCubePidCoord` using the coordinate you built.
+4. **Before doing anything else with the confirmed vector** — fetching, transforming, handing off —
+   append it to `references/known-vectors.md`: vector ID, coordinate, series title, and one line
+   on any sibling members nearby that could be conflated with it. This is not a follow-up task;
+   do it in the same turn as step 3, before Step 2 (Fetch) begins. A vector confirmed but not yet
+   written down is exactly as unrecoverable as one never confirmed, if the session ends before
+   you circle back to it.
 
 **If you already know the common series** (see `references/known-vectors.md` for a running list of
 vectors this project has verified — CPI food, all-items, unemployment rate, etc.), use the verified
@@ -229,4 +235,3 @@ StatsCan revises data, and a routine has to survive the month that method breaks
 
 For a running list of verified vectors, common conflation pairs, and dimension quirks discovered
 in use (NSA vs. SA, view-vs-cube mismatches, etc.), see `references/known-vectors.md`.
-Add newly verified vectors there as they come up, so future fetches don't repeat the discovery work.
