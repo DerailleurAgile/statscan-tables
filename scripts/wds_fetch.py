@@ -14,6 +14,9 @@ rounded to 1 decimal — StatsCan's own publication precision for CPI YoY. The
 Value column header is built from the vector's own series title and table
 number plus the actual output date range, so the file carries its provenance
 with it. Output is tab-delimited for painless spreadsheet pasting.
+
+Vendored verbatim into statscan-to-pbc/scripts/wds_fetch.py via that project's
+scripts/vendor_sync.py — changes here propagate on the next sync run.
 """
 import argparse
 import csv

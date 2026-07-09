@@ -3,6 +3,14 @@
 The skill's version lives in SKILL.md frontmatter (`version:`). Bump it and add an entry here
 with every change that gets packaged/uploaded — patch for fixes, minor for behavior changes.
 
+## 1.4.0 — 2026-07-09
+
+This project is now the canonical source for the shared WDS fetch/clean/aggregate logic and
+`known-vectors.md` — `statscan-to-pbc` vendors both verbatim via its `scripts/vendor_sync.py`
+instead of hand-reimplementing changes made here. No functional change in this project; `wds_fetch.py`
+and `known-vectors.md` gain header notes pointing at the downstream vendored copy, and SKILL.md's
+Step 1.4 / "Known Traps Reference" note the same.
+
 ## 1.3.0 — 2026-07-09
 
 Alignment with statscan-to-pbc v1.7.0–1.7.3 (the non-PBC lessons — no `--annotate`/chart

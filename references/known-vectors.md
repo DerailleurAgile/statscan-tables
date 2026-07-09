@@ -1,4 +1,7 @@
-# Known Vectors and Traps — StatsCan Tables
+# Known Vectors and Traps — StatsCan WDS
+
+Canonical copy: statscan-tables/references/known-vectors.md — edit there, then re-run
+statscan-to-pbc/scripts/vendor_sync.py to refresh the vendored copy.
 
 Verified in use. Add to this file whenever a new vector is confirmed correct, so future
 fetches skip the discovery step and inherit the trap-avoidance already worked out.
