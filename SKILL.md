@@ -1,6 +1,6 @@
 ---
 name: statscan-tables
-version: 1.4.0
+version: 1.5.0
 description: >
   Activate this skill whenever the user wants to fetch, download, or update a Statistics Canada
   time series. Trigger on mentions of "StatsCan", "Statistics Canada", a table number in the
@@ -111,12 +111,19 @@ For the common cases, `scripts/wds_fetch.py` does Steps 2–5 in one run:
 ```
 python scripts/wds_fetch.py [vectorId] [months] [--transform yoy|raw]
                             [--aggregate monthly|bimonthly|quarterly|annual]
-                            [--agg-method mean|sum] [--out FILE]
+                            [--agg-method mean|sum] [--out FILE] [--refresh]
 ```
 
 It fetches, cleans, transforms (YoY computed from the index, +12 periods of trailing history
 handled automatically), writes a tab-delimited two-column file with a provenance-bearing header,
 and prints the Step 4 verification block.
+
+**The fetch itself is cached** — same disk-cache pattern as `cube_metadata.py`'s cube-structure
+cache (Step 1), but a 6-hour TTL instead of 30 days, since vector data (unlike cube structure) gets
+revised on StatsCan's release schedule. This means re-running with a different `--transform`,
+`--aggregate`, or `--out` doesn't re-hit the API — only the first fetch in a session does. `[cache]`
+or `[network]` prints before the verification block say which happened. Pass `--refresh` to force
+a re-fetch (e.g. right after a release, or if a value looks stale).
 
 **Re-timescaling with `--aggregate`.** Compiles the fetched series into coarser calendar buckets
 before any transform: a weekly source into monthly/quarterly/annual, a monthly source into

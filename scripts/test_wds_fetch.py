@@ -1,8 +1,13 @@
-"""Offline self-check for the clean/transform/aggregate logic. Standard library only, no network.
+"""Offline self-check for the clean/transform/aggregate logic and the data cache.
+Standard library only, no network.
 
 Run: python test_wds_fetch.py
 """
-from wds_fetch import clean_points, aggregate, yoy_series, build_header
+import os
+import tempfile
+
+import wds_fetch
+from wds_fetch import clean_points, aggregate, yoy_series, build_header, _cached_post
 
 
 def dp(ref, value, status=0, scalar=0):
@@ -49,6 +54,28 @@ def main():
     assert h == "StatsCan: YoY % Change Food (2025-01-2026-05) — Table: 18-10-0004"
     h = build_header("Emigrants", "17-10-0040", "Estimated Annual", "2010", "2025", compiled=True)
     assert "Compiled from Table: 17-10-0040" in h
+
+    # _cached_post: a second call within the TTL is served from disk, not re-fetched;
+    # refresh=True always bypasses the cache
+    with tempfile.TemporaryDirectory() as tmp:
+        old_env = os.environ.get("LOCALAPPDATA")
+        os.environ["LOCALAPPDATA"] = tmp
+        calls = []
+        orig_post = wds_fetch._post
+        wds_fetch._post = lambda url, body: calls.append(1) or {"ok": True}
+        try:
+            a = _cached_post("http://x", {"a": 1}, key="test-key")
+            b = _cached_post("http://x", {"a": 1}, key="test-key")
+            assert a == b == {"ok": True}
+            assert len(calls) == 1, "second call should have hit the cache, not the network"
+            _cached_post("http://x", {"a": 1}, key="test-key", refresh=True)
+            assert len(calls) == 2, "refresh=True should bypass the cache"
+        finally:
+            wds_fetch._post = orig_post
+            if old_env is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_env
 
     print("All checks pass.")
 

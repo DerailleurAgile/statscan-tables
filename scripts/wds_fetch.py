@@ -17,18 +17,26 @@ with it. Output is tab-delimited for painless spreadsheet pasting.
 
 Vendored verbatim into statscan-to-pbc/scripts/wds_fetch.py via that project's
 scripts/vendor_sync.py — changes here propagate on the next sync run.
+
+fetch_vector/fetch_series_info are disk-cached (same pattern as cube_metadata.py's
+getCubeMetadata cache, just a few hours instead of 30 days — vector data, unlike cube
+structure, gets revised on StatsCan's release schedule). Pass refresh=True to bypass.
 """
 import argparse
 import csv
 import io
 import json
+import os
 import platform
 import subprocess
+import time
+from pathlib import Path
 from statistics import fmean
 from urllib import request
 
 WDS_DATA_URL = "https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods"
 WDS_INFO_URL = "https://www150.statcan.gc.ca/t1/wds/rest/getSeriesInfoFromVector"
+DATA_MAX_AGE_HOURS = 6
 
 def _post(url: str, body: dict) -> dict:
     payload = json.dumps([body]).encode()
@@ -39,17 +47,38 @@ def _post(url: str, body: dict) -> dict:
         raise RuntimeError(f"WDS returned status {result.get('status')}")
     return result["object"]
 
-def fetch_vector(vector_id: int, latest_n: int) -> list:
-    return _post(WDS_DATA_URL, {"vectorId": vector_id, "latestN": latest_n})["vectorDataPoint"]
+def _data_cache_dir() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".cache")
+    return Path(base) / "statscan-tables" / "data-cache"
 
-def fetch_series_info(vector_id: int) -> tuple:
+def _cached_post(url: str, body: dict, key: str, refresh: bool = False) -> dict:
+    """_post(), but the parsed response is cached to disk under `key` for DATA_MAX_AGE_HOURS —
+    so re-running a fetch (e.g. iterating on chart flags downstream) doesn't re-hit WDS."""
+    path = _data_cache_dir() / f"{key}.json"
+    if not refresh and path.exists():
+        age_hours = (time.time() - path.stat().st_mtime) / 3600
+        if age_hours < DATA_MAX_AGE_HOURS:
+            print(f"[cache] {path} ({age_hours:.1f}h old)")
+            return json.loads(path.read_text(encoding="utf-8"))
+    obj = _post(url, body)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj), encoding="utf-8")
+    print(f"[network] fetched and cached to {path}")
+    return obj
+
+def fetch_vector(vector_id: int, latest_n: int, refresh: bool = False) -> list:
+    obj = _cached_post(WDS_DATA_URL, {"vectorId": vector_id, "latestN": latest_n},
+                       key=f"vector-{vector_id}-{latest_n}", refresh=refresh)
+    return obj["vectorDataPoint"]
+
+def fetch_series_info(vector_id: int, refresh: bool = False) -> tuple:
     """Returns (series_title, table_code) from the vector's own metadata, e.g. ('Food Purchased
     From Stores', '18-10-0004'). Strips the leading 'Canada;'-style geography prefix and
     title-cases the result, since StatsCan's own SeriesTitleEn is sentence case.
 
     Trap: for cubes with many dimensions the LAST title segment may be the adjustment type,
     not the series name (see references/known-vectors.md) — override the title when it is."""
-    info = _post(WDS_INFO_URL, {"vectorId": vector_id})
+    info = _cached_post(WDS_INFO_URL, {"vectorId": vector_id}, key=f"info-{vector_id}", refresh=refresh)
     title = info["SeriesTitleEn"].split(";")[-1].strip().title()
     pid = str(info["productId"])
     table = f"{pid[:2]}-{pid[2:4]}-{pid[4:8]}"
@@ -154,10 +183,12 @@ def main():
     ap.add_argument("--out", default="statscan_series.csv")
     ap.add_argument("--no-clip", action="store_true",
                     help="don't copy the result to the clipboard (e.g. in scheduled jobs)")
+    ap.add_argument("--refresh", action="store_true",
+                    help=f"bypass the {DATA_MAX_AGE_HOURS}h data cache and re-fetch from WDS")
     opts = ap.parse_args()
 
     extra = 12 if opts.transform == "yoy" else 0  # YoY needs a trailing year of source periods
-    series = clean_points(fetch_vector(opts.vector, opts.months + extra))
+    series = clean_points(fetch_vector(opts.vector, opts.months + extra, refresh=opts.refresh))
     agg_label = f"{opts.aggregate.title()} {opts.agg_method.title()} " if opts.aggregate else ""
     if opts.aggregate:
         series = aggregate(series, opts.aggregate, opts.agg_method)
@@ -170,7 +201,7 @@ def main():
     else:
         transform_label = agg_label.strip() or "Raw"
 
-    title, table = fetch_series_info(opts.vector)
+    title, table = fetch_series_info(opts.vector, refresh=opts.refresh)
     header = build_header(title, table, transform_label, series[0][0], series[-1][0],
                           compiled=bool(opts.aggregate))
 

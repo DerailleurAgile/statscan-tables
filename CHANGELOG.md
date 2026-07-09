@@ -3,6 +3,22 @@
 The skill's version lives in SKILL.md frontmatter (`version:`). Bump it and add an entry here
 with every change that gets packaged/uploaded — patch for fixes, minor for behavior changes.
 
+## 1.5.0 — 2026-07-09
+
+`wds_fetch.py`'s `fetch_vector`/`fetch_series_info` were hitting the WDS API on every call, with
+no caching — unlike `cube_metadata.py`'s discovery-step cache. Every re-run (a different
+`--transform`, `--aggregate`, or just iterating) re-fetched from scratch.
+
+- Both functions now disk-cache their parsed response, same pattern as `cube_metadata.py`'s
+  cube-structure cache, keyed by `(vectorId, latestN)` / `vectorId` respectively, under
+  `%LOCALAPPDATA%/statscan-tables/data-cache`. TTL is 6 hours, not 30 days — vector data gets
+  revised on StatsCan's release schedule, unlike cube structure.
+- `[cache]`/`[network]` prints before the verification block make it visible which happened.
+- New `--refresh` flag on `wds_fetch.py`'s CLI (and a `refresh=True` kwarg on both functions)
+  bypasses the cache — e.g. right after a release, or if a value looks stale.
+- Self-check extended in `test_wds_fetch.py` (offline, no network): confirms a repeat call hits
+  the cache, and that `refresh=True` bypasses it.
+
 ## 1.4.0 — 2026-07-09
 
 This project is now the canonical source for the shared WDS fetch/clean/aggregate logic and
