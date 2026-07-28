@@ -1,6 +1,6 @@
 ---
 name: statscan-tables
-version: 1.5.0
+version: 1.6.0
 description: >
   Activate this skill whenever the user wants to fetch, download, or update a Statistics Canada
   time series. Trigger on mentions of "StatsCan", "Statistics Canada", a table number in the

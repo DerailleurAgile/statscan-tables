@@ -3,6 +3,13 @@
 The skill's version lives in SKILL.md frontmatter (`version:`). Bump it and add an entry here
 with every change that gets packaged/uploaded — patch for fixes, minor for behavior changes.
 
+## 1.6.0 — 2026-07-28
+
+Added a project `CLAUDE.md` documenting this repo's role as the canonical source that gets
+vendored into `statscan-to-pbc` and distributed as the installable skill — dependency-free
+constraint, where to fix `known-vectors.md`, and why hierarchical/monorepo CLAUDE.md advice
+doesn't apply here. No functional change to the skill itself.
+
 ## 1.5.0 — 2026-07-09
 
 `wds_fetch.py`'s `fetch_vector`/`fetch_series_info` were hitting the WDS API on every call, with
