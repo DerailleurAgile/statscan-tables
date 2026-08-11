@@ -3,6 +3,14 @@
 The skill's version lives in SKILL.md frontmatter (`version:`). Bump it and add an entry here
 with every change that gets packaged/uploaded — patch for fixes, minor for behavior changes.
 
+## 1.7.0 — 2026-08-11
+
+Filled in the OSB consumer-insolvencies entry in `references/known-vectors.md`'s Out-of-Scope
+section (was a stub saying it "would need its own approach"; now has the worked-out, verified
+fetch: dataset page, sheet/row layout, the quarterly-currency gap and where to get current-quarter
+figures instead, and the required network allowlist). Added a one-line pointer in `SKILL.md` so a
+future session doesn't read "not in WDS" as "not covered" and skip checking that section.
+
 ## 1.6.0 — 2026-07-28
 
 Added a project `CLAUDE.md` documenting this repo's role as the canonical source that gets

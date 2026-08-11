@@ -116,11 +116,47 @@ Confirm the actual source before spending time on cube/vector discovery:
 
 | Series | Actual source | Notes |
 |---|---|---|
-| Business/personal insolvencies, bankruptcies | Office of the Superintendent of Bankruptcy (OSB), an independent federal office — not StatsCan | Published separately from StatsCan's WDS; would need its own fetch approach (OSB's site, not `getDataFromVectorsAndLatestNPeriods`). |
+| Business/personal insolvencies, bankruptcies | Office of the Superintendent of Bankruptcy (OSB), an independent federal office — not StatsCan | Published separately from StatsCan's WDS. Fetch approach worked out and verified — see the OSB section below. |
 | Housing starts | Canada Mortgage and Housing Corporation (CMHC) | CMHC publishes an all-up Excel workbook (multiple sheets) on its downloads page rather than a WDS-queryable vector. Would need an Excel-parsing approach, not the WDS fetch flow this skill wraps. |
 
-If a request calls for either of these, the shape of the work is different from Steps 1–4 here (no
-vector, no `getCubeMetadata`) — it's a spreadsheet-ingestion task, outside what this skill covers.
+If a request calls for one of these, the shape of the work is different from Steps 1–4 here (no
+vector, no `getCubeMetadata`) — it's a spreadsheet-ingestion task. `wds_fetch.py`'s helpers (e.g.
+`aggregate`) are still reusable once you have a `[(date, value), ...]` series; only the fetch step
+changes.
+
+---
+
+### Consumer Insolvencies — Office of the Superintendent of Bankruptcy (OSB)
+
+Not a WDS vector — this is an Excel-ingestion task against OSB's own publication, not StatsCan.
+
+**Source (historical series):** dataset page
+`https://open.canada.ca/data/en/dataset/746709f1-c729-44a1-ba84-7be5eadd3664` — re-check this page
+every session rather than reusing a cached download URL. The filename embeds the month
+(`historical_insolvency_statistics_monthly_<month>_<year>.xlsx`), so it changes each release.
+
+**Layout:** sheet `Monthly_mensuels`. Row 1 = date headers (a mix of string and datetime cells —
+needs a month-name parser, not a single `strptime` format). Column A = region block, column B =
+row label. Target row: "Consumer Insolvencies/Insolvabilité des consommateurs" within the Canada
+block. The label cell has leading whitespace in the raw string (indentation reflecting the row
+hierarchy) — `.strip()` before matching, don't compare for an exact literal.
+
+**Currency gap:** this XLSX lags OSB's own report pages by about a quarter. For the current
+quarter's figure, don't wait on the workbook — go to
+`https://ised-isde.canada.ca/site/office-superintendent-bankruptcy/en/insolvency-and-ccaa-statistics-canada`
+and pull Table 2 ("BIA Insolvencies Filed by Consumers, Canada") from the relevant quarterly report
+page directly.
+
+**Verified:** annual sums for 2016–2025 from this row/parse approach matched hand-verified OSB
+figures exactly.
+
+**Network access:** `open.canada.ca` and `ised-isde.canada.ca` are not in this environment's
+default allowed-domains set — they need to be enabled for the session before either fetch will
+work.
+
+**Charting:** once you have a `[(date, value), ...]` series, the generic parts of a downstream
+charting pipeline (e.g. `build_chart`, `plot_xmr_chart`, `add_callouts`, `aggregate`) apply
+unchanged — only the fetch step is non-WDS.
 
 ---
 

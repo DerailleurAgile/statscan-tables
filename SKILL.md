@@ -1,6 +1,6 @@
 ---
 name: statscan-tables
-version: 1.6.0
+version: 1.7.0
 description: >
   Activate this skill whenever the user wants to fetch, download, or update a Statistics Canada
   time series. Trigger on mentions of "StatsCan", "Statistics Canada", a table number in the
@@ -77,6 +77,11 @@ Do not assume a view's displayed column maps to a vector 1:1. Confirm what's act
 vectors this project has verified — CPI food, all-items, unemployment rate, etc.), use the verified
 vector directly, but still state which one and why, since verified vectors can still be
 conflated with a similarly-named sibling (see the trap below).
+
+**"Not in StatsCan's WDS" isn't necessarily "not covered."** Some requested series (insolvencies,
+housing starts, ...) are published by other federal agencies, not StatsCan — check
+`references/known-vectors.md`'s "Out of Scope" section before assuming the request is outside this
+skill; a couple of those have a worked-out, verified fetch approach documented there already.
 
 ### The conflation trap
 Headline coverage and the series the user actually wants are frequently *not the same series*.
